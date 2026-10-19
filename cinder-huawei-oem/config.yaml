@@ -1,0 +1,160 @@
+options:
+  use-multipath:
+    type: boolean
+    default: True
+    description: |
+      Whether to use a multipath connection for iSCSI or FC in Cinder
+      volume service. Enabling multipath for VMs is managed by the
+      "use-multipath" option in the nova-compute charm.
+  protocol:
+    type: string
+    default: iscsi
+    description: |
+      SAN protocol to use. Choose between iscsi or fc.
+  volume-backend-name:
+    type: string
+    description: |
+        Volume backend name for the backend. The default value is the
+        application name in the Juju model, e.g. "cinder-mybackend"
+        if it's deployed as `juju deploy cinder-huawei-oem cinder-mybackend`.
+        A common backend name can be set to multiple backends with the
+        same characters so that those can be treated as a single virtual
+        backend associated with a single volume type.
+  product:
+    type: string
+    default:
+    description: |
+      Type of a storage product. Possible values are 'TV2', 'V3',
+      '18000', or 'Dorado'.
+  rest-url:
+    type: string
+    default:
+    description: |
+      Semicolon(;) separated list of the REST interface. e.g.,
+      https://my-endpoint.example.com:8088/deviceManager/rest/
+  username:
+    type: string
+    default:
+    description: |
+      User name of a storage administrator.
+  password:
+    type: string
+    default:
+    description: |
+      Password of a storage administrator.
+  storage-pool:
+    type: string
+    default:
+    description: |
+      Semicolon(;) separated list of storage pools to be used.
+  luntype:
+    type: string
+    default: Thin
+    description: |
+      Type of the LUNs to be created. The value can be Thick or Thin. Dorado series
+      only support Thin LUNs.
+  lun-clone-mode:
+    type: string
+    default: luncopy
+    description: |
+      Method used by the storage array when cloning LUNs. The value can be
+      'fastclone' or 'luncopy'. 'fastclone' is only supported on Dorado V6
+      and later series; other products only support 'luncopy'.
+  lun-copy-speed:
+    type: int
+    default: 2
+    description: |
+      Speed used by the storage array for local LUN clones and background
+      splits. (1 = Low, 2 = Medium (default), 3 = High, 4 = Highest).
+  default-targetip:
+    type: string
+    default:
+    description: |
+      Default IP address of the iSCSI target that is provided for compute nodes.
+  initiator-name:
+    type: string
+    default: ''
+    description: |
+      List of iSCSI initiators names, separated by the semicolons. Can be acquired
+      from the /etc/iscsi/initiatorname.iscsi on the compute host.
+  target-portgroup:
+    type: string
+    default:
+    description: |
+      Port Group name on the storage array side. This has to be configured
+      in order to use the iSCSI multipathing.
+  fc-hostname:
+    type: string
+    default:
+    description: |
+      List of FC initiators host names, separated by the semicolons.
+      Use regular expression for every Nova or Cinder node's host names,
+      for example, "cinder-[0-9]" or "compute.*"
+  fc-minonlinefcinitiator:
+    type: int
+    default: 1
+    description: |
+      Configured when the protocol is FC.
+      Minimum number of available FC initiators. The value indicates the number
+      of initiators that must be online to complete volume mounting.
+      Setting it to -1 will remove this configuration entirely
+  alua:
+    type: int
+    default: 1
+    description: |
+        0: Huawei UltraPath
+        1: third-party multipathing software
+  failover-mode:
+    type: int
+    default: 1
+    description: |
+        Initiator switchover mode.
+        This parameter needs to be delivered only when third-party multipathing software is used.
+        0: early-version ALUA
+        1: common ALUA
+        2: ALUA not used
+        3: special mode
+  path-type:
+    type: int
+    default: 0
+    description: |
+        Initiator path type.
+        This parameter needs to be delivered only when third-party multipathing software is used.
+        0: optimized path
+        1: non-optimized path
+  metro-san-user:
+    type: string
+    default:
+    description: |
+      Only required if the protocol is FC. User name of a storage administrator on the remote (HyperMetro).
+      array.
+      Must be used together with all metro-* options.
+  metro-san-password:
+    type: string
+    default:
+    description: |
+      Only required if the protocol is FC. Password of the storage administrator specified by metro-user-name on the remote (HyperMetro).
+      array.
+      Must be used together with all metro-* options.
+  metro-domain-name:
+    type: string
+    default:
+    description: |
+      Only required if the protocol is FC. HyperMetro domain name, as configured on the storage arrays (e.g.
+      via DeviceManager/ISM). The domain must already exist and be paired with the
+      local and remote arrays; the charm does not create it.
+      Must be used together with all metro-* options.
+  metro-san-address:
+    type: string
+    default:
+    description: |
+      Only required if the protocol is FC. Semicolon(;) separated list of the REST interfaces of the remote
+      (HyperMetro) array. e.g.,
+      https://my-remote-endpoint.example.com:8088/deviceManager/rest/
+      Must be used together with all metro-* options.
+  metro-storage-pool:
+    type: string
+    default:
+    description: |
+      Only required if the protocol is FC. Name of the storage pool on the remote (HyperMetro) array.
+      Must be used together with all metro-* options.

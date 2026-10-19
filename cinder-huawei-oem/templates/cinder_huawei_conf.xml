@@ -1,0 +1,42 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!-- Configuration file maintained by Juju. Local changes may be overwritten. -->
+<config>
+    <Storage>
+        <Product>{{ product }}</Product>
+        <UserName>{{ username }}</UserName>
+        <UserPassword>{{ password }}</UserPassword>
+        <RestURL>{{ rest_url }}</RestURL>
+    </Storage>
+    <LUN>
+        <LUNType>{{ luntype }}</LUNType>
+        <LUNCloneMode>{{ lun_clone_mode }}</LUNCloneMode>
+        <LUNCopySpeed>{{ lun_copy_speed }}</LUNCopySpeed>
+        <StoragePool>{{ storage_pool }}</StoragePool>
+    </LUN>
+    {% if protocol == "iscsi" %}
+    <iSCSI>
+        {% if default_targetip != '' -%}
+        <DefaultTargetIP>{{ default_targetip }}</DefaultTargetIP>
+        {% endif %}
+        {% if initiator_name != '' -%}
+        {% set initiators = initiator_name.split(';') %}
+        {% for initiator in initiators -%}
+        <Initiator Name="{{ initiator }}" TargetPortGroup="{{ target_portgroup }}" />
+        {% endfor %}
+        {% endif %}
+    </iSCSI>
+    {% endif %}
+    {% if protocol == "fc" %}
+    <FC>
+        {% if fc_minonlinefcinitiator > -1 -%}
+        <MinOnlineFCInitiator>{{ fc_minonlinefcinitiator }}</MinOnlineFCInitiator>
+        {% endif %}
+        {% if fc_hostname != '' -%}
+        {% set hostnames = fc_hostname.split(';') %}
+        {% for hostname in hostnames -%}
+        <Initiator Name="{{ hostname }}" ALUA="{{ alua }}" FAILOVERMODE="{{ failovermode }}" PATHTYPE="{{ pathtype }}"/>
+        {% endfor %}
+        {% endif %}
+    </FC>
+    {% endif %}
+</config>

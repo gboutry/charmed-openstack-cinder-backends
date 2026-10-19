@@ -2,6 +2,7 @@
 <!-- Configuration file maintained by Juju. Local changes may be overwritten. -->
 <config>
     <Storage>
+        <Protocol>{{ "iSCSI" if protocol == "iscsi" else "FC" }}</Protocol>
         <Product>{{ product }}</Product>
         <UserName>{{ username }}</UserName>
         <UserPassword>{{ password }}</UserPassword>
@@ -16,12 +17,12 @@
     {% if protocol == "iscsi" %}
     <iSCSI>
         {% if default_targetip != '' -%}
-        <DefaultTargetIP>{{ default_targetip }}</DefaultTargetIP>
+        <DefaultTargetIP>{{ default_targetip | e }}</DefaultTargetIP>
         {% endif %}
         {% if initiator_name != '' -%}
         {% set initiators = initiator_name.split(';') %}
         {% for initiator in initiators -%}
-        <Initiator Name="{{ initiator }}" TargetPortGroup="{{ target_portgroup }}" />
+        <Initiator Name="{{ initiator | e }}" />
         {% endfor %}
         {% endif %}
     </iSCSI>
@@ -34,7 +35,7 @@
         {% if fc_hostname != '' -%}
         {% set hostnames = fc_hostname.split(';') %}
         {% for hostname in hostnames -%}
-        <Initiator Name="{{ hostname }}" ALUA="{{ alua }}" FAILOVERMODE="{{ failovermode }}" PATHTYPE="{{ pathtype }}"/>
+        <Initiator HostName="{{ hostname | e }}" ALUA="{{ alua }}" FAILOVERMODE="{{ failovermode }}" PATHTYPE="{{ pathtype }}"/>
         {% endfor %}
         {% endif %}
     </FC>

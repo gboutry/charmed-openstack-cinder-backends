@@ -17,6 +17,7 @@
 
 # import base64
 import os
+import ipaddress
 import logging
 from xml.sax.saxutils import escape
 
@@ -25,18 +26,20 @@ from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus
 from charmhelpers.core.templating import render
 from charmhelpers.core.host import mkdir
+from charmhelpers.contrib.openstack.utils import configure_installation_source
+from charmhelpers.fetch import apt_install, apt_update
 
 
 logger = logging.getLogger(__name__)
 
 HUAWEI_CNF_FILE = "cinder_huawei_conf.xml"
-DRIVER_ISCSI = "cinder.volume.drivers.huawei.huawei_driver.HuaweiISCSIDriver"
-DRIVER_FC = "cinder.volume.drivers.huawei.huawei_driver.HuaweiFCDriver"
+DRIVER_ISCSI = "huawei_cinder.huawei_driver.HuaweiISCSIDriver"
+DRIVER_FC = "huawei_cinder.huawei_driver.HuaweiFCDriver"
 
 
 class CinderHuaweiCharm(CinderStoragePluginCharm):
 
-    PACKAGES = ['cinder-common', 'sysfsutils']
+    PACKAGES = ['cinder-common', 'sysfsutils', 'python3-cinder-huawei']
     MANDATORY_CONFIG = [
         'protocol',
         'product',
@@ -47,18 +50,16 @@ class CinderHuaweiCharm(CinderStoragePluginCharm):
     ]
 
     """
-    The HyperMetro configuration options below are directly rendered
-    to the /etc/cinder/cinder.conf file under each backend configuration.
-    Though the remote accepts one storage pool, the documentation specifies
-    this configuration option as a plural.
-    https://docs.openstack.org/cinder/2024.1/configuration/block-storage/drivers/huawei-storage-driver.html#configuration-file-parameters
+    The packaged driver consumes remote storage settings through the
+    hypermetro_device dictionary. Preserve the existing charm option names
+    while translating them to the downstream driver's dictionary keys.
     """
     HYPERMETRO_CONFIG_MAP = {
-        'metro_san_user': 'metro-san-user',
-        'metro_san_password': 'metro-san-password',
-        'metro_domain_name': 'metro-domain-name',
-        'metro_san_address': 'metro-san-address',
-        'metro_storage_pools': 'metro-storage-pool',
+        'san_user': 'metro-san-user',
+        'san_password': 'metro-san-password',
+        'metro_domain': 'metro-domain-name',
+        'san_address': 'metro-san-address',
+        'storage_pool': 'metro-storage-pool',
     }
 
     # Overriden from the parent. May be set depending on the charm's properties
@@ -67,11 +68,28 @@ class CinderHuaweiCharm(CinderStoragePluginCharm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self._stored.set_default(package_origin=None)
+
+    def install_pkgs(self):
+        origin = self.config['openstack-origin']
+        configure_installation_source(origin)
+        apt_update(fatal=True)
+        apt_install(self.PACKAGES, fatal=True)
+        self._stored.package_origin = origin
+        self.update_status()
+
+    def on_install(self, event):
+        self.install_pkgs()
+
+    def _on_config(self, event):
+        if self._stored.package_origin != self.config['openstack-origin']:
+            self.install_pkgs()
+        super()._on_config(event)
 
     def cinder_configuration(self, config):
         # Return the configuration to be set by the principal.
-        backend_name = config.get('volume-backend-name',
-                                  self.framework.model.app.name)
+        backend_name = (config.get('volume-backend-name') or
+                        self.framework.model.app.name)
 
         huawei_conf_file = self.create_huawei_conf(config)
 
@@ -96,10 +114,12 @@ class CinderHuaweiCharm(CinderStoragePluginCharm):
                 ('enforce_multipath_for_image_xfer', True)
             ])
 
-        for cinder_opt, charm_opt in self.HYPERMETRO_CONFIG_MAP.items():
-            value = config.get(charm_opt)
-            if value:
-                options.append((cinder_opt, value))
+        hypermetro = ','.join(
+            '{}:{}'.format(driver_opt, config[charm_opt])
+            for driver_opt, charm_opt in self.HYPERMETRO_CONFIG_MAP.items()
+            if config.get(charm_opt))
+        if hypermetro:
+            options.append(('hypermetro_device', hypermetro))
 
         return options
 
@@ -135,6 +155,19 @@ class CinderHuaweiCharm(CinderStoragePluginCharm):
             self.unit.status = BlockedStatus(hypermetro_error)
             return
 
+        if protocol == 'iscsi':
+            targets = (config.get('default-targetip') or '').split()
+            try:
+                if not targets:
+                    raise ValueError('no target IPs')
+                for target in targets:
+                    ipaddress.ip_address(target)
+            except ValueError:
+                self.unit.status = BlockedStatus(
+                    'default-targetip must contain whitespace-separated '
+                    'IPv4 or IPv6 addresses for iSCSI')
+                return
+
         app_name = self.framework.model.app.name
         for relation in self.framework.model.relations.get('storage-backend'):
             self.set_data(relation.data[self.unit], config, app_name)
@@ -155,6 +188,13 @@ class CinderHuaweiCharm(CinderStoragePluginCharm):
                 'HyperMetro partially configured, missing: {}. Set all of '
                 'the metro-* options, or none to disable HyperMetro.'.format(
                     ', '.join(missing))
+            )
+
+        invalid = sorted(opt for opt in options if ',' in config[opt])
+        if invalid:
+            return (
+                'HyperMetro options cannot contain commas because they are '
+                'encoded as hypermetro_device: {}'.format(', '.join(invalid))
             )
 
         if ';' in config['metro-storage-pool']:
@@ -178,10 +218,9 @@ class CinderHuaweiCharm(CinderStoragePluginCharm):
             'luntype': cfg.get('luntype'),
             'lun_clone_mode': cfg.get('lun-clone-mode'),
             'lun_copy_speed': cfg.get('lun-copy-speed'),
-            'default_targetip': cfg.get('default-targetip'),
-            'initiator_name': cfg.get('initiator-name'),
-            'target_portgroup': cfg.get('target-portgroup'),
-            'fc_hostname': cfg.get('fc-hostname'),
+            'default_targetip': cfg.get('default-targetip') or '',
+            'initiator_name': cfg.get('initiator-name') or '',
+            'fc_hostname': cfg.get('fc-hostname') or '',
             'fc_minonlinefcinitiator': cfg.get('fc-minonlinefcinitiator'),
             'alua': cfg.get('alua'),
             'failovermode': cfg.get('failover-mode'),
@@ -202,7 +241,7 @@ class CinderHuaweiCharm(CinderStoragePluginCharm):
         render(HUAWEI_CNF_FILE, huawei_conf_file,
                self.get_huawei_context(cfg),
                owner='cinder',
-               perms=0o644)
+               perms=0o600)
         return huawei_conf_file
 
 

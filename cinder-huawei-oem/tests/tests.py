@@ -22,9 +22,11 @@ from zaza.openstack.charm_tests.cinder_backend.tests import CinderBackendTest
 class CinderHuaweiTest(CinderBackendTest):
     """Encapsulate Huawei tests."""
 
-    backend_name = 'Huawei'
+    backend_name = 'cinder-huawei-oem'
 
     expected_config_content = {
-        'Huawei': {
-            'volume-backend-name': ['Huawei'],
+        'cinder-huawei-oem': {
+            'volume_backend_name': ['cinder-huawei-oem'],
+            'volume_driver': [
+                'huawei_cinder.huawei_driver.HuaweiISCSIDriver'],
         }}

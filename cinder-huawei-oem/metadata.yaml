@@ -1,17 +1,16 @@
 name: cinder-huawei-oem
-summary: Huawei integration for OpenStack Block Storage
+summary: Downstream Huawei integration for OpenStack Block Storage
 maintainer: OpenStack Charmers <openstack-charmers@lists.ubuntu.com>
 description: |
  Cinder is the block storage service for the Openstack project.
  .
- This charm provides a Huawei backend for Cinder
+ This charm uses the separately installed Huawei Cinder driver package
 tags:
   - openstack
   - storage
   - file-servers
   - misc
 series:
-  - focal
   - jammy
 subordinate: true
 provides:
